@@ -47,12 +47,7 @@ func main() {
 		log.Fatal("Error listing instances", err)
 	}
 
-	var ip string = ""
-	for idx := range resp.Reservations {
-		for _, inst := range resp.Reservations[idx].Instances {
-			ip = *inst.PrivateIpAddress
-		}
-	}
+	var ip string = *resp.Reservations[0].Instances[0].PrivateIpAddress
 
 	if len(ip) > 0 {
 		fmt.Println(ip)
