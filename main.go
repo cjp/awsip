@@ -47,10 +47,8 @@ func main() {
 		log.Fatal("Error listing instances", err)
 	}
 
-	var ip string = *resp.Reservations[0].Instances[0].PrivateIpAddress
-
-	if len(ip) > 0 {
-		fmt.Println(ip)
+	if len(resp.Reservations) > 0 && len(resp.Reservations[0].Instances) > 0 {
+		fmt.Println(*resp.Reservations[0].Instances[0].PrivateIpAddress)
 	} else {
 		fmt.Fprintf(os.Stderr, "Not found\n")
 		os.Exit(1)
