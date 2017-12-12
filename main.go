@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -15,25 +16,30 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "usage: %s <instance_name>\n", filepath.Base(os.Args[0]))
 }
 
-func main() {
+func init() {
 	if len(os.Args) != 2 {
 		usage()
 		os.Exit(64)
 	}
+}
 
-	inst := os.Args[1]
+// privateip accepts an array of ec2.Reservation pointers and returns first private IP found
+func privateip(r []*ec2.Reservation) (ip string, err error) {
+	if len(r) > 0 && len(r[0].Instances) > 0 {
+		ip = *r[0].Instances[0].PrivateIpAddress
+	} else {
+		err = errors.New("PrivateIpAddress not found")
+	}
+	return
+}
 
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	}))
-
-	ec2client := ec2.New(sess)
-
+// findinst searches for instances tagged with name
+func findinst(cli *ec2.EC2, n string) (resp *ec2.DescribeInstancesOutput, err error) {
 	params := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			{
 				Name:   aws.String("tag:Name"),
-				Values: []*string{aws.String(inst)},
+				Values: []*string{aws.String(n)},
 			},
 			{
 				Name:   aws.String("instance-state-name"),
@@ -42,15 +48,27 @@ func main() {
 		},
 	}
 
-	resp, err := ec2client.DescribeInstances(params)
+	resp, err = cli.DescribeInstances(params)
+	return
+}
+
+func main() {
+	inst := os.Args[1]
+
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+
+	ec2client := ec2.New(sess)
+
+	resp, err := findinst(ec2client, inst)
 	if err != nil {
-		log.Fatal("Error listing instances", err)
+		log.Fatal("Error finding instances: ", err)
 	}
 
-	if len(resp.Reservations) > 0 && len(resp.Reservations[0].Instances) > 0 {
-		fmt.Println(*resp.Reservations[0].Instances[0].PrivateIpAddress)
-	} else {
-		fmt.Fprintf(os.Stderr, "Not found\n")
-		os.Exit(1)
+	ip, err := privateip(resp.Reservations)
+	if err != nil {
+		log.Fatal("Error getting IP: ", err)
 	}
+	fmt.Println(ip)
 }
